@@ -7,19 +7,108 @@ output:
 
 
 ## Loading and preprocessing the data
-
+I use read.csv to load the data from the activity.csv file with specifying the column classes.
+```{r loadingdata}
+data <- read.csv("activity.csv", colClasses = c("integer", "Date", "integer"))
+```
 
 
 ## What is mean total number of steps taken per day?
+###Calculate the total number of steps taken per day
+I try to use dplyr libray to group daily total steps
+```{r totalsteps}
+library(dplyr)
+totalsteps<- data %>% group_by(date) %>% summarize(totalsteps = sum(steps))
+totalsteps
+```
+### Make a histogram of the total number of steps taken each day
+In order to observe the distribution of the total steps per day, I draw the 
+histogram of the total steps per day.
 
+```{r showhistogram}
 
+library(ggplot2)
+ggplot(totalsteps, aes(totalsteps)) + geom_histogram(binwidth = 250) + 
+labs(title = "Total steps per day distribution") 
+````
+
+###Mean and median of the total number of steps taken per day
+
+```{r meanmedian}
+mean <- as.integer(round(mean(totalsteps$totalsteps, na.rm =TRUE)))
+median <- median(totalsteps$totalsteps, na.rm =TRUE)
+```
+The mean of total number of steps taken per day is `r mean`.
+The median of total number of steps taken per day is  `r median`
 
 ## What is the average daily activity pattern?
+###Time series plot
+In order to observe daily activity, I make a time series plot.
+```{r activitypattern}
+intervalsteps <- data %>% group_by(interval) %>% 
+     summarize(averagesteps = mean(steps, na.rm =TRUE))
+plot(intervalsteps$interval, intervalsteps$averagesteps, type = "l", 
+     xlab="5-minute interval", ylab = "averaged steps across all days", main = "Activity pattern")
 
+```
 
+### 5-minute interval contains the maximum number of steps
+I also observe which interval contains the maximum number of steps.
+``` {r maximumsteps}
+max <- intervalsteps[which.max(intervalsteps$averagesteps),]
+max.interval <- max$interval
+max.steps <- max$averagesteps
+```
+As you can see from the diagram, the 5-minute interval which contains the maximum number of step is `r max.interval` interval. This interval contains
+`r max.steps` steps.
 
 ## Imputing missing values
+### Total number of missing values in the dataset
+I found there are a lot of NA in the steps column, but there is no NA in date and interval column.  
+I decide to calculate how many missing values in the dataset.
+```{r missingvalues}
+missing.num<- sum(is.na(data$steps))
+```
+There are `r missing.num` rows with NA in the dataset
 
+### A strategy for filling in all of the missing values
+I decide to use mean for that 5-minute interval to fill in the missing values.
+
+###Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r newdataset}
+newdata <- data %>% group_by(interval) %>% mutate(steps =  
+ifelse(is.na(steps),intervalsteps[which(intervalsteps$interval == interval[1]),]$averagesteps,
+       steps))
+```
+
+###total number of steps taken each day
+```{r totalstepsafterimputing}
+totalsteps<- newdata %>% group_by(date) %>% summarize(totalsteps = sum(steps))
+ggplot(totalsteps, aes(totalsteps)) + geom_histogram(binwidth = 250) + 
+labs(title = "Total steps per day distribution after imputing missing values") 
+mean <- as.integer(round(mean(totalsteps$totalsteps, na.rm =TRUE)))
+median <- median(totalsteps$totalsteps, na.rm =TRUE)
+```
+The mean of total number of steps taken per day after imputing missing value is `r mean`.  
+The median of total number of steps taken per day after imputing missing value is  `r median`  
+Compared this histogram with the previous histogram without imputing missing data, I found the distribution has changed . The maximun count in this histogram is 9, but the maximum count in previous histogram is 4.  
+The impacting of imputing missing data will lead to increase the total daily steps.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+###Create a new factor variable in the dataset with two levels
+We create a new column named day with two label: weekday and weekend
+```{r weekdayweekend}
+Sys.setlocale("LC_TIME", "US")
+data$day <-factor(1* (weekdays(data$date) != "Sunday" & 
+            weekdays(data$date)!= "Saturday"), labels = c("weekend", "weekday"))
+```
+
+###panel plot grouped by weekend and weekday label
+```{r weekendplot}
+week.data<- data %>% group_by(day,interval) %>% summarize(averagesteps = mean(steps, na.rm =TRUE))
+library(lattice)
+xyplot( averagesteps ~ interval|day, data = week.data, layout = c(1, 2), 
+        type = "l", ylab = "Number of steps")
+```
